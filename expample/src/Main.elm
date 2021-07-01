@@ -2,9 +2,10 @@ module Main exposing (main)
 
 import Generic as Gen
 import Generic.Json as Json
+import Generic.Xml as Xml
 import Generic.Yaml as Yaml
 import Html exposing (Html)
-
+import Generic.Decoder exposing (decode)
 
 main : Html msg
 main =
@@ -48,9 +49,10 @@ main =
 }]}
 
     """
-        |> Json.decodeString
-        --  |> Gen.get [ Gen.String "age", Gen.Int 1 ]
-        -- (Gen.List [ Gen.Int 333, Gen.String "asadfasda", Gen.Bool True ])
-        |> Gen.toString
-        |> Maybe.withDefault "ssss"
+        |> decode
+        |> Result.withDefault Gen.Null
+        |> Yaml.encode
+        |> Yaml.toString 2
         |> Html.text
+        |> List.singleton
+        |> Html.pre []

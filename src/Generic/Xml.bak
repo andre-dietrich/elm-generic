@@ -1,0 +1,201 @@
+module Generic.Xml exposing
+    ( decode
+    , encode
+    , toString
+    )
+
+import Generic as Gen
+import Generic.Json as Json
+import Xml
+import Xml.Decode as XD
+import Xml.Encode as XE
+
+
+toString : Int -> Xml.Value -> String
+toString =
+    XE.encode
+
+
+decode : String -> Result String Gen.Value
+decode =
+    XD.decodeChildren >> Result.map (Xml.xmlToJson2 >> Json.decodeValue)
+
+
+encode : Gen.Value -> Xml.Value
+encode =
+    Json.encode >> Xml.jsonToXml
+
+
+module Generic.Xml exposing (decode)
+
+import Dict
+import Generic as Gen
+import Generic.Json as Json
+import GenericDict
+import Iso8601
+import Xml exposing (Value(..))
+import Xml.Decode as XD
+import Xml.Encode as XE
+
+
+prefixAttributes : String
+prefixAttributes =
+    "@"
+
+
+decode : String -> Result String Gen.Value
+decode =
+    XD.decodeChildren >> Result.map (Xml.xmlToJson >> Json.decodeValue)
+
+
+
+{-
+   toGeneric : Value -> Gen.Value
+   toGeneric xml =
+       case xml of
+           BoolNode value ->
+               Gen.Bool value
+
+           IntNode value ->
+               Gen.Int value
+
+           FloatNode value ->
+               Gen.Float value
+
+           StrNode value ->
+               if value |> String.trim |> String.isEmpty then
+                   Gen.Null
+
+               else
+                   Gen.String value
+
+           Tag name dict value ->
+               let
+                   attr =
+                       dict
+                           |> Dict.toList
+                           |> List.map (\( k, v ) -> ( Gen.String (prefixAttributes ++ k), toGeneric v ))
+
+                   param =
+                       toGeneric value
+               in
+               [ ( Gen.String name
+                 , case ( param, attr ) of
+                       ( Gen.Null, [] ) ->
+                           Gen.Null
+
+                       ( _, [] ) ->
+                           param
+
+                       ( Gen.Dict gen, _ ) ->
+                           GenericDict.toList gen
+                               |> List.append attr
+                               |> Gen.toDict
+                               |> Gen.Dict
+
+                       ( Gen.Null, _ ) ->
+                           attr
+                               |> Gen.toDict
+                               |> Gen.Dict
+
+                       ( Gen.List gen, _ ) ->
+                           attr
+                               |> Gen.toDict
+                               |> Gen.Dict
+                               |> List.singleton
+                               |> List.append gen
+                               |> Gen.List
+
+                       _ ->
+                           ( Gen.String "#text", param )
+                               :: attr
+                               |> Gen.toDict
+                               |> Gen.Dict
+                 )
+               ]
+                   |> Gen.toDict
+                   |> Gen.Dict
+
+           Object value ->
+               value
+                   |> List.map toGeneric
+                   |> Gen.List
+
+           _ ->
+               Gen.Null
+
+
+   encode : Gen.Value -> Value
+   encode generic =
+       case generic of
+           Gen.Bool duck ->
+               XE.bool duck
+
+           Gen.Int duck ->
+               XE.int duck
+
+           Gen.Float duck ->
+               XE.float duck
+
+           Gen.String duck ->
+               XE.string duck
+
+           Gen.List duck ->
+               duck
+                   |> List.map encode
+                   |> XE.list
+
+           Gen.Set _ ->
+               generic
+                   |> Gen.toList
+                   |> List.map encode
+                   |> XE.list
+
+           Gen.Dict duck ->
+               let
+                   _ =
+                       Debug.log "ssssssssssssssssssssssss" duck
+
+                   values =
+                       duck
+                           |> GenericDict.toList
+                           |> List.map (\( key, value ) -> ( Gen.toString key |> Maybe.withDefault "null", encode value ))
+
+                   attr =
+                       values
+                           |> List.filterMap
+                               (\( k, v ) ->
+                                   if String.startsWith prefixAttributes k then
+                                       Just ( String.right 1 k, v )
+
+                                   else
+                                       Nothing
+                               )
+
+                   text =
+                       values
+                           |> List.filterMap
+                               (\( k, v ) ->
+                                   if k == "#text" then
+                                       Just v
+
+                                   else
+                                       Nothing
+                               )
+
+                   body =
+                       values
+                           |> List.filterMap
+                               (\( k, v ) ->
+                                   if String.startsWith prefixAttributes k || k == "#text" then
+                                       Nothing
+
+                                   else
+                                       Just ( k, v )
+                               )
+               in
+               XE.null
+
+           _ ->
+               XE.null
+-}

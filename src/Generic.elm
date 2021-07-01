@@ -1,11 +1,10 @@
 module Generic exposing
-    ( Type(..)
+    ( Value(..)
     , filter
     , filterMap
     , get
     , map
     , set
-    , toBinary
     , toBool
     , toDate
     , toDateTime
@@ -19,31 +18,26 @@ module Generic exposing
     , typeOf
     )
 
-import Base64
-import Bytes exposing (Bytes, Endianness(..))
-import Bytes.Decode
-import Bytes.Encode
 import EverySet exposing (EverySet)
 import GenericDict as Dict exposing (Dict)
 import Iso8601
 import Time exposing (Posix)
 
 
-type Type
+type Value
     = Null
     | Bool Bool
     | Int Int
     | Float Float
     | String String
-    | List (List Type)
-    | Set (EverySet Type)
-    | Dict (Dict Type Type)
+    | List (List Value)
+    | Set (EverySet Value)
+    | Dict (Dict Value Value)
     | Date Posix
     | DateTime Posix
-    | Binary Bytes
 
 
-typeOf : Type -> String
+typeOf : Value -> String
 typeOf generic =
     case generic of
         Null ->
@@ -76,11 +70,31 @@ typeOf generic =
         DateTime _ ->
             "datetime"
 
-        Binary _ ->
-            "binary"
 
+{-| Same as in JavaScript, tries to make a bool from every type
 
-toBool : Type -> Bool
+    toBool Null --> False
+
+    toBool (Bool True) --> True
+
+    toBool (Bool False) --> False
+
+    toBool (Int 0) --> False
+
+    toBool (Int -1) --> True
+
+    toBool (Float 0.0) --> False
+
+    toBool (Float 3.141592) --> True
+
+    toBool (String "") --> False
+
+    toBool (String "misc") --> True
+
+    toBool (List []) --> True
+
+-}
+toBool : Value -> Bool
 toBool generic =
     case generic of
         Null ->
@@ -98,17 +112,34 @@ toBool generic =
         String duck ->
             duck /= ""
 
-        Binary duck ->
-            duck
-                |> Bytes.Decode.decode Bytes.Decode.signedInt8
-                |> Maybe.map (Int >> toBool)
-                |> Maybe.withDefault False
-
         _ ->
             True
 
 
-toInt : Type -> Maybe Int
+{-| Convert a generic toy to Int, if possible
+
+    toInt Null --> Nothing
+
+    toInt (Bool True) --> Just 1
+
+    toInt (Bool False) --> Just 0
+
+    toInt (Int 0) --> Just 0
+
+    toInt (Int -1) --> Just -1
+
+    toInt (Float 0.0) --> Just 0
+
+    toInt (Float 3.141592) --> Just 3
+
+    toInt (String "") --> Nothing
+
+    toInt (String "33") --> Just 33
+
+    toInt (String "33.33") --> Just 33
+
+-}
+toInt : Value -> Maybe Int
 toInt generic =
     case generic of
         Bool duck ->
@@ -139,15 +170,36 @@ toInt generic =
                 |> Time.posixToMillis
                 |> Just
 
-        Binary duck ->
-            duck
-                |> Bytes.Decode.decode (Bytes.Decode.signedInt32 BE)
-
         _ ->
             Nothing
 
 
-toFloat : Type -> Maybe Float
+{-| Convert a generic toy to Float, if possible
+
+    toFloat Null --> Nothing
+
+    toFloat (Bool True) --> Just 1.0
+
+    toFloat (Bool False) --> Just 0.0
+
+    toFloat (Int 2) --> Just 2.0
+
+    toFloat (Int -1) --> Just -1.0
+
+    toFloat (Float 0.0) --> Just 0.0
+
+    toFloat (Float 3.141592) --> Just 3.141592
+
+    toFloat (String "") --> Nothing
+
+    toFloat (String "33") --> Just 33
+
+    toFloat (String "33 m") --> Nothing
+
+    toFloat (String "33.33") --> Just 33.33
+
+-}
+toFloat : Value -> Maybe Float
 toFloat generic =
     case generic of
         Bool duck ->
@@ -181,15 +233,38 @@ toFloat generic =
                 |> Basics.toFloat
                 |> Just
 
-        Binary duck ->
-            duck
-                |> Bytes.Decode.decode (Bytes.Decode.float64 BE)
-
         _ ->
             Nothing
 
 
-toString : Type -> Maybe String
+{-| Convert a generic toy to Float, if possible
+
+    toString Null --> Nothing
+
+    toString (Bool True) --> Just "true"
+
+    toString (Bool False) --> Just "false"
+
+    toString (Int 2) --> Just "2"
+
+    toString (Int -1) --> Just "-1"
+
+    toString (Float 0.0) --> Just "0"
+
+    toString (Float 3.141592) --> Just "3.141592"
+
+    toString (String "") --> Just ""
+
+    toString (String "33") --> Just "33"
+
+    toString (String "33 m") --> Just "33 m"
+
+    toString (String "33.33") --> Just "33.33"
+
+    toString (List [ String "33.33", Null ]) --> Just "[\"33.33\",null]"
+
+-}
+toString : Value -> Maybe String
 toString generic =
     case generic of
         Null ->
@@ -243,9 +318,6 @@ toString generic =
                 |> Iso8601.fromTime
                 >> Just
 
-        Binary duck ->
-            Bytes.Decode.decode (Bytes.Decode.string (Bytes.width duck)) duck
-
 
 seqString : String -> String -> List String -> String
 seqString begin end body =
@@ -257,16 +329,11 @@ seqString begin end body =
         ++ end
 
 
-toSubString : Type -> String
+toSubString : Value -> String
 toSubString generic =
     case generic of
         String duck ->
             "\"" ++ duck ++ "\""
-
-        Binary duck ->
-            duck
-                |> Base64.fromBytes
-                |> Maybe.withDefault "bytes"
 
         _ ->
             generic
@@ -274,7 +341,11 @@ toSubString generic =
                 |> Maybe.withDefault "null"
 
 
-toList : Type -> List Type
+
+{- Tries to turn every type into a list -}
+
+
+toList : Value -> List Value
 toList generic =
     case generic of
         List duck ->
@@ -290,12 +361,12 @@ toList generic =
             [ generic ]
 
 
-toDict : List ( Type, Type ) -> Dict Type Type
+toDict : List ( Value, Value ) -> Dict Value Value
 toDict =
     Dict.fromList toSubString
 
 
-toSet : Type -> EverySet Type
+toSet : Value -> EverySet Value
 toSet generic =
     case generic of
         List duck ->
@@ -313,7 +384,7 @@ toSet generic =
             EverySet.singleton generic
 
 
-toDate : Type -> Maybe Posix
+toDate : Value -> Maybe Posix
 toDate generic =
     generic
         |> toDateTime
@@ -322,7 +393,7 @@ toDate generic =
         |> Maybe.andThen (\x -> x ++ "T00:00:00.000Z" |> Iso8601.toTime >> Result.toMaybe)
 
 
-toDateTime : Type -> Maybe Posix
+toDateTime : Value -> Maybe Posix
 toDateTime generic =
     case generic of
         Date duck ->
@@ -346,89 +417,24 @@ toDateTime generic =
                                 time
                    )
 
-        Binary duck ->
-            duck
-                |> Bytes.Decode.decode (Bytes.Decode.signedInt32 BE)
-                >> Maybe.map Time.millisToPosix
-
         _ ->
             generic
                 |> toInt
                 |> Maybe.map Time.millisToPosix
 
 
-toBinary : Type -> Bytes
-toBinary generic =
-    case generic of
-        Binary duck ->
-            duck
 
-        Bool duck ->
-            (if duck then
-                1
+{- Generic getter, the first parameter defines a sequense of how the generic
+   type should be traversed
 
-             else
-                0
-            )
-                |> Bytes.Encode.signedInt8
-                >> Bytes.Encode.encode
-
-        Int duck ->
-            duck
-                |> Bytes.Encode.signedInt32 BE
-                >> Bytes.Encode.encode
-
-        Float duck ->
-            duck
-                |> Bytes.Encode.float64 BE
-                >> Bytes.Encode.encode
-
-        String duck ->
-            duck
-                |> Bytes.Encode.string
-                >> Bytes.Encode.encode
-
-        List duck ->
-            duck
-                |> List.map (toBinary >> Bytes.Encode.bytes)
-                >> Bytes.Encode.sequence
-                >> Bytes.Encode.encode
-
-        Set duck ->
-            duck
-                |> EverySet.toList
-                >> List.map (toBinary >> Bytes.Encode.bytes)
-                >> Bytes.Encode.sequence
-                >> Bytes.Encode.encode
-
-        Date duck ->
-            duck
-                |> Time.posixToMillis
-                >> Bytes.Encode.signedInt32 BE
-                >> Bytes.Encode.encode
-
-        DateTime duck ->
-            duck
-                |> Time.posixToMillis
-                >> Bytes.Encode.signedInt32 BE
-                >> Bytes.Encode.encode
-
-        Dict duck ->
-            0
-                |> Bytes.Encode.signedInt8
-                >> Bytes.Encode.encode
-
-        Null ->
-            0
-                |> Bytes.Encode.signedInt8
-                >> Bytes.Encode.encode
+      "{'type':[1,[2,'tada']]}"
+        |> Generic.Json.decodeString
+        |> get [String "type", Int 1, Int 1]
+        |> toString -- "tada"
+-}
 
 
-
--->> Bytes.Encode.encode
-
-
-get : List Type -> Type -> Maybe Type
+get : List Value -> Value -> Maybe Value
 get ids generic =
     case ( ids, generic ) of
         ( [ id ], List duck ) ->
@@ -444,7 +450,7 @@ get ids generic =
                 |> toInt
                 >> Maybe.andThen (getList (EverySet.toList duck))
 
-        ( [ id ], String duck ) ->
+        ( [ _ ], String duck ) ->
             duck
                 |> String.split ""
                 >> List.map String
@@ -460,9 +466,9 @@ get ids generic =
             Nothing
 
 
-getList : List Type -> Int -> Maybe Type
-getList list id =
-    case list of
+getList : List Value -> Int -> Maybe Value
+getList duck id =
+    case duck of
         [] ->
             Nothing
 
@@ -477,7 +483,18 @@ getList list id =
                 getList ist (id - 1)
 
 
-set : List Type -> Type -> Type -> Type
+
+{- Generic setter, the first parameter defines a sequense of how the generic
+   type should be traversed and the second the new value
+
+      "{'type':[1,[2,'tada']]}"
+        |> Generic.Json.decodeString
+        |> set [String "type", Int 1, Int 1] (Int 9999)
+        |> toString -- "{\"type\":[1,[2,9999]]}"
+-}
+
+
+set : List Value -> Value -> Value -> Value
 set ids value generic =
     case ( ids, generic ) of
         ( [], _ ) ->
@@ -536,9 +553,9 @@ set ids value generic =
             generic
 
 
-setList : List Type -> Type -> List Type -> Int -> List Type
-setList list value ids id =
-    case list of
+setList : List Value -> Value -> List Value -> Int -> List Value
+setList duck value ids id =
+    case duck of
         [] ->
             []
 
@@ -547,15 +564,15 @@ setList list value ids id =
                 set ids value head :: tail
 
             else if id < 0 then
-                list
+                duck
 
             else
                 head :: setList tail value ids (id - 1)
 
 
 setString : Int -> String -> List Char -> List Char
-setString id value list =
-    case list of
+setString id value duck =
+    case duck of
         [] ->
             []
 
@@ -564,16 +581,16 @@ setString id value list =
                 value
                     |> String.uncons
                     |> Maybe.map (\( c, _ ) -> c :: tail)
-                    |> Maybe.withDefault list
+                    |> Maybe.withDefault duck
 
             else if id < 0 then
-                list
+                duck
 
             else
                 head :: setString (id - 1) value tail
 
 
-map : (Type -> Type) -> Type -> Type
+map : (Value -> Value) -> Value -> Value
 map fn generic =
     case generic of
         List duck ->
@@ -595,7 +612,7 @@ map fn generic =
             fn generic
 
 
-filterMap : (Type -> Maybe Type) -> Type -> Type
+filterMap : (Value -> Maybe Value) -> Value -> Value
 filterMap fn generic =
     case generic of
         List duck ->
@@ -629,7 +646,7 @@ filterMap fn generic =
             generic
 
 
-filter : (Type -> Type) -> Type -> Type
+filter : (Value -> Value) -> Value -> Value
 filter fn generic =
     case generic of
         List duck ->

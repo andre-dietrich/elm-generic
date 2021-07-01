@@ -3,99 +3,98 @@ module Generic.Json exposing
     , decodeValue
     , decoder
     , encode
+    , toString
     )
 
-import Base64
-import Generic as Gen
+import Generic
 import GenericDict as Dict
 import Iso8601
 import Json.Decode as JD
 import Json.Encode as JE
 
 
-decodeString : String -> Gen.Type
+toString : Int -> JE.Value -> String
+toString =
+    JE.encode
+
+
+decodeString : String -> Generic.Value
 decodeString =
-    JD.decodeString decoder >> Result.withDefault Gen.Null
+    JD.decodeString decoder >> Result.withDefault Generic.Null
 
 
-decodeValue : JD.Value -> Gen.Type
+decodeValue : JD.Value -> Generic.Value
 decodeValue =
-    JD.decodeValue decoder >> Result.withDefault Gen.Null
+    JD.decodeValue decoder >> Result.withDefault Generic.Null
 
 
-decoder : JD.Decoder Gen.Type
+decoder : JD.Decoder Generic.Value
 decoder =
     JD.oneOf
-        [ JD.map (\_ -> Gen.Null) (JD.null False)
-        , JD.map Gen.Bool JD.bool
-        , JD.map Gen.Int JD.int
-        , JD.map Gen.Float JD.float
+        [ JD.map (\_ -> Generic.Null) (JD.null False)
+        , JD.map Generic.Bool JD.bool
+        , JD.map Generic.Int JD.int
+        , JD.map Generic.Float JD.float
         , JD.map string JD.string
-        , JD.map Gen.List (JD.list (JD.lazy (\_ -> decoder)))
+        , JD.map Generic.List (JD.list (JD.lazy (\_ -> decoder)))
         , JD.map
-            (List.map (\( key, value ) -> ( Gen.String key, value ))
-                >> Gen.toDict
-                >> Gen.Dict
+            (List.map (\( key, value ) -> ( Generic.String key, value ))
+                >> Generic.toDict
+                >> Generic.Dict
             )
             (JD.keyValuePairs (JD.lazy (\_ -> decoder)))
         ]
 
 
-string : String -> Gen.Type
+string : String -> Generic.Value
 string str =
     case Iso8601.toTime str of
         Result.Ok posix ->
             if String.contains "T" str then
-                Gen.DateTime posix
+                Generic.DateTime posix
 
             else
-                Gen.Date posix
+                Generic.Date posix
 
         Result.Err _ ->
-            Gen.String str
+            Generic.String str
 
 
-encode : Gen.Type -> JE.Value
+encode : Generic.Value -> JE.Value
 encode generic =
     case generic of
-        Gen.Null ->
+        Generic.Null ->
             JE.null
 
-        Gen.Bool duck ->
+        Generic.Bool duck ->
             JE.bool duck
 
-        Gen.Int duck ->
+        Generic.Int duck ->
             JE.int duck
 
-        Gen.Float duck ->
+        Generic.Float duck ->
             JE.float duck
 
-        Gen.String duck ->
+        Generic.String duck ->
             JE.string duck
 
-        Gen.List duck ->
+        Generic.List duck ->
             JE.list encode duck
 
-        Gen.Set _ ->
+        Generic.Set _ ->
             generic
-                |> Gen.toList
-                >> Gen.List
+                |> Generic.toList
+                >> Generic.List
                 >> encode
 
-        Gen.Dict duck ->
+        Generic.Dict duck ->
             duck
                 |> Dict.toList
-                |> List.map (\( key, value ) -> ( Gen.toString key |> Maybe.withDefault "null", encode value ))
+                |> List.map (\( key, value ) -> ( Generic.toString key |> Maybe.withDefault "null", encode value ))
                 |> JE.object
 
-        Gen.Date duck ->
+        Generic.Date duck ->
             Iso8601.encode duck
 
-        Gen.DateTime duck ->
+        Generic.DateTime duck ->
             Iso8601.encode duck
-
-        Gen.Binary duck ->
-            duck
-                |> Base64.fromBytes
-                |> Maybe.withDefault ""
-                |> JE.string
