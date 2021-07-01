@@ -629,7 +629,7 @@ filterMap fn generic =
                             Just val ->
                                 Just ( key, val )
 
-                            Nothing ->
+                            _ ->
                                 Nothing
                     )
                 >> Dict.fromList toSubString
