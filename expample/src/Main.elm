@@ -1,11 +1,12 @@
 module Main exposing (main)
 
 import Generic as Gen
+import Generic.Decoder exposing (decode)
 import Generic.Json as Json
 import Generic.Xml as Xml
 import Generic.Yaml as Yaml
 import Html exposing (Html)
-import Generic.Decoder exposing (decode)
+
 
 main : Html msg
 main =
@@ -47,12 +48,11 @@ main =
     }],
     "Asthma":[{}]
 }]}
-
     """
         |> decode
         |> Result.withDefault Gen.Null
         |> Yaml.encode
-        |> Yaml.toString 2
+        |> Yaml.toString 1
         |> Html.text
         |> List.singleton
         |> Html.pre []
