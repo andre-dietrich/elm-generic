@@ -1,0 +1,4 @@
+{
+  "root": "../src",
+  "tests": ["Generic", "Generic.Decoder", "Generic.Json"]
+}
