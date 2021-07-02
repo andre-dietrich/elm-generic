@@ -1,22 +1,32 @@
 module Generic exposing
-    ( Value(..)
-    , filter
-    , filterMap
-    , get
-    , map
-    , set
-    , toBool
-    , toDate
-    , toDateTime
-    , toDict
-    , toFloat
-    , toInt
-    , toList
-    , toSet
-    , toString
-    , toSubString
-    , typeOf
+    ( Value(..), typeOf
+    , get, set
+    , toBool, toInt, toFloat, toString, toList, toDict, toSet, toDate, toDateTime
     )
+
+{-| This module defines a basic type system, as it is known from JavaScript. The
+basic idea is that you can use generic types of decoders that can translate into
+this format, so you are not forces anymore to write custom decoders if your are
+only interested in some basic values.
+
+The type system should also behave similarly the one we know from JavaScript.
+
+
+## Types
+
+@docs Value, typeOf
+
+
+## Getting & Setting
+
+@docs get, set
+
+
+## Transformations
+
+@docs toBool, toInt, toFloat, toString, toList, toDict, toSet, toDate, toDateTime
+
+-}
 
 import EverySet exposing (EverySet)
 import GenericDict as Dict exposing (Dict)
@@ -24,6 +34,19 @@ import Iso8601
 import Time exposing (Posix)
 
 
+{-| Supported basic types. In contrast to JSON types, this covers also types
+such as `Set`, `Date`, and `DateTime`.
+
+In the future it would also be interesting to have a general binary type that
+can be used with any kind of transformation function, i.e. `toFloat` or for
+serializing streams of data (lists, sets, etc.).
+
+`Set`s and `Dict`s use different types than the Base elm-types, so that they
+can cope with more complex values that `Int`, `String`, etc. Thus, a
+`Generic.Dict` can also have keys of type integer or list, nested ones are
+also allowed.
+
+-}
 type Value
     = Null
     | Bool Bool
@@ -37,6 +60,19 @@ type Value
     | DateTime Posix
 
 
+{-| Clone of the JavaScript function `typeof` that returns a String:
+
+    typeOf Null --> "null"
+
+    typeOf (Bool True) --> "bool"
+
+    typeOf (Int -99) --> "int"
+
+    typeOf (Float 1.234) --> "float"
+
+    typeOf (String "foo") --> "string"
+
+-}
 typeOf : Value -> String
 typeOf generic =
     case generic of
@@ -174,29 +210,31 @@ toInt generic =
             Nothing
 
 
-{-| Convert a generic toy to Float, if possible
+{-| Convert a generic type to Float, if possible
 
-    toFloat Null --> Nothing
+    import Generic as Gen
 
-    toFloat (Bool True) --> Just 1.0
+    Gen.toFloat Null --> Nothing
 
-    toFloat (Bool False) --> Just 0.0
+    Gen.toFloat (Bool True) --> Just 1.0
 
-    toFloat (Int 2) --> Just 2.0
+    Gen.toFloat (Bool False) --> Just 0.0
 
-    toFloat (Int -1) --> Just -1.0
+    Gen.toFloat (Int 2) --> Just 2.0
 
-    toFloat (Float 0.0) --> Just 0.0
+    Gen.toFloat (Int -1) --> Just -1.0
 
-    toFloat (Float 3.141592) --> Just 3.141592
+    Gen.toFloat (Float 0.0) --> Just 0.0
 
-    toFloat (String "") --> Nothing
+    Gen.toFloat (Float 3.141592) --> Just 3.141592
 
-    toFloat (String "33") --> Just 33
+    Gen.toFloat (String "") --> Nothing
 
-    toFloat (String "33 m") --> Nothing
+    Gen.toFloat (String "33") --> Just 33
 
-    toFloat (String "33.33") --> Just 33.33
+    Gen.toFloat (String "33 m") --> Nothing
+
+    Gen.toFloat (String "33.33") --> Just 33.33
 
 -}
 toFloat : Value -> Maybe Float
@@ -237,7 +275,7 @@ toFloat generic =
             Nothing
 
 
-{-| Convert a generic toy to Float, if possible
+{-| Convert a generic type to a string representation. Actually this works for any value, except for `Null`:
 
     toString Null --> Nothing
 
@@ -341,10 +379,18 @@ toSubString generic =
                 |> Maybe.withDefault "null"
 
 
+{-| Tries to turn every type into a list
 
-{- Tries to turn every type into a list -}
+    import Generic as Gen
 
+    List [ Null, Int 12 ] |> toList --> [Null, Int 12]
 
+    List [ Null, Int 12, Int 12]
+        |> toSet
+        |> Set
+        |> toList --> [Int 12, Null]
+
+-}
 toList : Value -> List Value
 toList generic =
     case generic of
@@ -361,11 +407,19 @@ toList generic =
             [ generic ]
 
 
+{-| Turns a list of tuples of generic values into a generic dictionary.
+
+    [ ( Int 12, String "foo" ), ( Null, List [ Float 12.0, Null ] ) ]
+        |> toDict
+
+-}
 toDict : List ( Value, Value ) -> Dict Value Value
 toDict =
     Dict.fromList toSubString
 
 
+{-| Turns everything into a set of type `EverySet`, if possible. Passing a `Dict` will result in a set of dict values.
+-}
 toSet : Value -> EverySet Value
 toSet generic =
     case generic of
@@ -384,6 +438,8 @@ toSet generic =
             EverySet.singleton generic
 
 
+{-| Try to get a `Date` value in Posix Format.
+-}
 toDate : Value -> Maybe Posix
 toDate generic =
     generic
@@ -393,6 +449,8 @@ toDate generic =
         |> Maybe.andThen (\x -> x ++ "T00:00:00.000Z" |> Iso8601.toTime >> Result.toMaybe)
 
 
+{-| Try to get a `DateTime` value in Posix Format.
+-}
 toDateTime : Value -> Maybe Posix
 toDateTime generic =
     case generic of
@@ -423,17 +481,27 @@ toDateTime generic =
                 |> Maybe.map Time.millisToPosix
 
 
+{-| Generic getter, the first parameter defines a sequence of how the generic type
+should be traversed. The result is a `Maybe Value` that needs to be converted into
+your desired elm-type:
 
-{- Generic getter, the first parameter defines a sequense of how the generic
-   type should be traversed
+    import Generic.Decoder exposing (decode)
 
-      "{'type':[1,[2,'tada']]}"
-        |> Generic.Json.decodeString
+    "{\"type\": [1, [2, \"tada\"] ]}"
+        |> decode
+        |> Result.withDefault Null
         |> get [String "type", Int 1, Int 1]
-        |> toString -- "tada"
+        |> Maybe.andThen toString
+        |> (==) (Just "tada") --> True
+
+    "{\"type\": [1, [2, \"tada\"] ]}"
+        |> decode
+        |> Result.withDefault Null
+        |> get [Int 99]
+        |> Maybe.andThen toString
+        |> (==) Nothing --> True
+
 -}
-
-
 get : List Value -> Value -> Maybe Value
 get ids generic =
     case ( ids, generic ) of
@@ -457,10 +525,13 @@ get ids generic =
                 >> List
                 >> get ids
 
+        ( [ _ ], _ ) ->
+            Nothing
+
         ( id :: s, _ ) ->
             generic
                 |> get [ id ]
-                >> Maybe.andThen (get s)
+                |> Maybe.andThen (get s)
 
         _ ->
             Nothing
@@ -483,17 +554,29 @@ getList duck id =
                 getList ist (id - 1)
 
 
+{-| Generic setter, the first parameter defines a sequence of how the generic
+type should be traversed and the second the new value
 
-{- Generic setter, the first parameter defines a sequense of how the generic
-   type should be traversed and the second the new value
+    import Generic.Json as Json
+    import Generic as Gen
 
-      "{'type':[1,[2,'tada']]}"
-        |> Generic.Json.decodeString
-        |> set [String "type", Int 1, Int 1] (Int 9999)
-        |> toString -- "{\"type\":[1,[2,9999]]}"
+    "{\"type\": [1, [2, \"tada\"] ]}"
+        |> Json.decodeString
+        |> Gen.set [Gen.String "type", Gen.Int 1, Gen.Int 1] (Gen.Int 9999)
+        |> Json.encode
+        |> Json.toString 0
+        |> (==) "{\"type\":[1,[2,9999]]}"
+        --> True
+
+    "{\"type\": [1, [2, \"tada\"] ]}"
+        |> Json.decodeString
+        |> Gen.set [Gen.String "type", Gen.Int 11, Gen.Int 11] (Gen.Int 9999)
+        |> Json.encode
+        |> Json.toString 0
+        |> (==) "{\"type\":[1,[2,\"tada\"]]}"
+        --> True
+
 -}
-
-
 set : List Value -> Value -> Value -> Value
 set ids value generic =
     case ( ids, generic ) of

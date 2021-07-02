@@ -1,8 +1,10 @@
-module Generic.Yaml exposing
-    ( decode
-    , encode
-    , toString
-    )
+module Generic.Yaml exposing (decode, encode, toString)
+
+{-|
+
+@docs decode, encode, toString
+
+-}
 
 import Dict
 import Generic
@@ -11,6 +13,8 @@ import Yaml.Decode as YD
 import Yaml.Encode as YE
 
 
+{-| Generic YAML decoder
+-}
 decode : String -> Result YD.Error Generic.Value
 decode =
     YD.fromString decoder
@@ -35,6 +39,8 @@ decoder =
         ]
 
 
+{-| Generic YAML encoder
+-}
 encode : Generic.Value -> YE.Encoder
 encode generic =
     case generic of
@@ -70,6 +76,8 @@ encode generic =
             YE.null
 
 
+{-| Will return a String representation for any kind of YAML value.
+-}
 toString : Int -> YE.Encoder -> String
-toString =
-    YE.toString
+toString i =
+    YE.toString i
