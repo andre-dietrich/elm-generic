@@ -3,7 +3,7 @@
     "name": "andre-dietrich/elm-generic",
     "summary": "Simplify the decoding and encoding of json, xml, yaml by one simple generic API",
     "license": "BSD-3-Clause",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "exposed-modules": [
         "Generic",
         "Generic.Decoder",
