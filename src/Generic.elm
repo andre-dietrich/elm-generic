@@ -2,6 +2,7 @@ module Generic exposing
     ( Value(..), typeOf
     , get, set
     , toBool, toInt, toFloat, toString, toList, toDict, toSet, toDate, toDateTime
+    , dictFromList
     )
 
 {-| This module defines a basic type system, as it is known from JavaScript. The
@@ -26,10 +27,16 @@ The type system should also behave similarly the one we know from JavaScript.
 
 @docs toBool, toInt, toFloat, toString, toList, toDict, toSet, toDate, toDateTime
 
+
+## Helpers
+
+@docs dictFromList
+
 -}
 
+import Dict exposing (Dict)
 import EverySet exposing (EverySet)
-import GenericDict as Dict exposing (Dict)
+import GenericDict
 import Iso8601
 import Time exposing (Posix)
 
@@ -55,7 +62,7 @@ type Value
     | String String
     | List (List Value)
     | Set (EverySet Value)
-    | Dict (Dict Value Value)
+    | Dict (GenericDict.Dict Value Value)
     | Date Posix
     | DateTime Posix
 
@@ -340,7 +347,7 @@ toString generic =
 
         Dict duck ->
             duck
-                |> Dict.toList
+                |> GenericDict.toList
                 >> List.map (\( key, value ) -> toSubString key ++ ":" ++ toSubString value)
                 >> seqString "{" "}"
                 >> Just
@@ -383,39 +390,52 @@ toSubString generic =
 
     import Generic as Gen
 
-    List [ Null, Int 12 ] |> toList --> [Null, Int 12]
+    List [ Null, Int 12 ] |> toList --> Just [Null, Int 12]
 
     List [ Null, Int 12, Int 12]
         |> toSet
         |> Set
-        |> toList --> [Int 12, Null]
+        |> toList --> Just [Int 12, Null]
 
 -}
-toList : Value -> List Value
+toList : Value -> Maybe (List Value)
 toList generic =
     case generic of
         List duck ->
-            duck
+            Just duck
 
         Set duck ->
-            duck |> EverySet.toList
-
-        Dict duck ->
-            Dict.values duck
+            duck |> EverySet.toList |> Just
 
         _ ->
-            [ generic ]
+            Nothing
+
+
+{-| Returns an elm Dict from a Generic.Dict, if possible
+-}
+toDict : Value -> Maybe (Dict String Value)
+toDict generic =
+    case generic of
+        Dict duck ->
+            duck
+                |> GenericDict.toList
+                |> List.map (Tuple.mapFirst (toString >> Maybe.withDefault "null"))
+                |> Dict.fromList
+                |> Just
+
+        _ ->
+            Nothing
 
 
 {-| Turns a list of tuples of generic values into a generic dictionary.
 
     [ ( Int 12, String "foo" ), ( Null, List [ Float 12.0, Null ] ) ]
-        |> toDict
+        |> dictFromList
 
 -}
-toDict : List ( Value, Value ) -> Dict Value Value
-toDict =
-    Dict.fromList toSubString
+dictFromList : List ( Value, Value ) -> Value
+dictFromList =
+    GenericDict.fromList toSubString >> Dict
 
 
 {-| Turns everything into a set of type `EverySet`, if possible. Passing a `Dict` will result in a set of dict values.
@@ -431,7 +451,7 @@ toSet generic =
 
         Dict duck ->
             duck
-                |> Dict.values
+                |> GenericDict.values
                 |> EverySet.fromList
 
         _ ->
@@ -511,7 +531,7 @@ get ids generic =
                 >> Maybe.andThen (getList duck)
 
         ( [ id ], Dict duck ) ->
-            Dict.get toSubString id duck
+            GenericDict.get toSubString id duck
 
         ( [ id ], Set duck ) ->
             id
@@ -603,7 +623,7 @@ set ids value generic =
 
         ( [ id ], Dict duck ) ->
             duck
-                |> Dict.insert toSubString id value
+                |> GenericDict.insert toSubString id value
                 |> Dict
 
         ( [ id ], String duck ) ->
@@ -623,11 +643,11 @@ set ids value generic =
                     generic
 
         ( head :: tail, Dict duck ) ->
-            Dict.get toSubString head duck
+            GenericDict.get toSubString head duck
                 |> Maybe.map
                     (\d ->
                         duck
-                            |> Dict.insert toSubString head (set tail value d)
+                            |> GenericDict.insert toSubString head (set tail value d)
                             |> Dict
                     )
                 |> Maybe.withDefault generic
@@ -683,7 +703,7 @@ map fn generic =
 
         Dict duck ->
             duck
-                |> Dict.map (\_ value -> fn value)
+                |> GenericDict.map (\_ value -> fn value)
                 >> Dict
 
         Set duck ->
@@ -705,7 +725,7 @@ filterMap fn generic =
 
         Dict duck ->
             duck
-                |> Dict.toList
+                |> GenericDict.toList
                 >> List.filterMap
                     (\( key, value ) ->
                         case fn value of
@@ -715,7 +735,7 @@ filterMap fn generic =
                             _ ->
                                 Nothing
                     )
-                >> Dict.fromList toSubString
+                >> GenericDict.fromList toSubString
                 >> Dict
 
         Set duck ->
@@ -739,7 +759,7 @@ filter fn generic =
 
         Dict duck ->
             duck
-                |> Dict.filter (\_ value -> value |> fn >> toBool)
+                |> GenericDict.filter (\_ value -> value |> fn >> toBool)
                 >> Dict
 
         Set duck ->

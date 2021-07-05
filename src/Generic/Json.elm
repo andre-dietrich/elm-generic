@@ -112,6 +112,7 @@ encode generic =
         Generic.Set _ ->
             generic
                 |> Generic.toList
+                |> Maybe.withDefault []
                 >> Generic.List
                 >> encode
 
@@ -153,8 +154,7 @@ decoder =
         , JD.map Generic.List (JD.list (JD.lazy (\_ -> decoder)))
         , JD.map
             (List.map (\( key, value ) -> ( Generic.String key, value ))
-                >> Generic.toDict
-                >> Generic.Dict
+                >> Generic.dictFromList
             )
             (JD.keyValuePairs (JD.lazy (\_ -> decoder)))
         ]

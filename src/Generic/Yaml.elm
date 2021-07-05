@@ -32,8 +32,7 @@ decoder =
         , YD.map
             (Dict.toList
                 >> List.map (\( key, value ) -> ( Generic.String key, value ))
-                >> Generic.toDict
-                >> Generic.Dict
+                >> Generic.dictFromList
             )
             (YD.dict (YD.lazy (\_ -> decoder)))
         ]
@@ -62,6 +61,7 @@ encode generic =
         Generic.Set _ ->
             generic
                 |> Generic.toList
+                >> Maybe.withDefault []
                 >> Generic.List
                 >> encode
 
